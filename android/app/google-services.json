@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "185315258538",
+    "project_id": "insight-64965",
+    "storage_bucket": "insight-64965.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:185315258538:android:42b85bcd3e4d93354820d3",
+        "android_client_info": {
+          "package_name": "com.example.insight"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVirZDobXhBxW_4AubQoatswHMuIPmzuc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
