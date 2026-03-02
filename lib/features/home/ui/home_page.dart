@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:insight/widgets/location_input_card.dart';
+import 'package:insight/features/home/ui/location_search_page.dart';
 
 class HomePage extends StatefulWidget {
   final Future<void> Function()? onLogout;
@@ -11,6 +12,12 @@ class HomePage extends StatefulWidget {
 
   @override
   State<HomePage> createState() => _HomePageState();
+  String _departureText = 'Select departure location';
+  LatLng? _departureLocation;
+  
+  String _destinationText = 'Select destination';
+  LatLng? _destinationLocation;
+  
 }
 
 class _HomePageState extends State<HomePage> {
