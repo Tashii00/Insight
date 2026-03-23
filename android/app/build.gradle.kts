@@ -10,7 +10,7 @@ plugins {
 
 android {
     namespace = "com.example.insight"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = "27.0.12077973" 
 
     compileOptions {
@@ -24,8 +24,8 @@ android {
 
     defaultConfig {
         applicationId = "com.example.insight"
-        minSdk = 23
-        targetSdk = 33
+        minSdk = 24
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
     }
