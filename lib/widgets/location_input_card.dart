@@ -8,12 +8,77 @@ import '../services/map_service.dart';
 class LocationInputCard extends StatefulWidget {
   final TextEditingController fromController;
   final TextEditingController toController;
+  final LatLng? userLocation; // for autocomplete bias
+  final void Function(PlaceSuggestion) onToSelected;
+  final VoidCallback onSearch;
+  final bool isLoading;
 
   const LocationInputCard({
     super.key,
     required this.fromController,
     required this.toController,
+    required this.onToSelected,
+    required this.onSearch,
+    this.userLocation,
+    this.isLoading = false,
   });
+
+  @override
+  State<LocationInputCard> createState() => _LocationInputCardState();
+}
+
+class _LocationInputCardState extends State<LocationInputCard> {
+  final _uuid = const Uuid();
+  String? _sessionToken;
+  List<PlaceSuggestion> _suggestions = [];
+  bool _showDropdown = false;
+  final FocusNode _toFocus = FocusNode();
+
+  void _onToChanged(String value) {
+    _sessionToken ??= _uuid.v4();
+
+    if (value.isEmpty) {
+      setState(() {
+        _suggestions = [];
+        _showDropdown = false;
+      });
+      return;
+    }
+
+    MapService.getAutocompleteSuggestions(
+      value,
+      sessionToken: _sessionToken,
+      locationBias: widget.userLocation,
+    ).then((results) {
+      if (mounted) {
+        setState(() {
+          _suggestions = results;
+          _showDropdown = results.isNotEmpty;
+        });
+      }
+    });
+  }
+
+  void _onSuggestionTap(PlaceSuggestion s) {
+    widget.toController.text = s.description;
+    setState(() {
+      _showDropdown = false;
+      _suggestions = [];
+    });
+    _sessionToken = null;
+
+    // Close keyboard
+    _toFocus.unfocus();
+    FocusScope.of(context).unfocus();
+
+    widget.onToSelected(s);
+  }
+
+  @override
+  void dispose() {
+    _toFocus.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,48 +86,91 @@ class LocationInputCard extends StatefulWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
+          // ── FROM (read-only current location) ────────────────────────────
           Row(
             children: [
-              Icon(Icons.my_location, color: Colors.red.shade400, size: 22),
+              Icon(Icons.my_location, color: Colors.green.shade600, size: 20),
               const SizedBox(width: 12),
               Expanded(
                 child: TextField(
-                  controller: fromController,
+                  controller: widget.fromController,
+                  readOnly: true,
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
                   decoration: const InputDecoration(
-                    hintText: "Your location",
+                    hintText: 'My Location',
                     border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
                   ),
                 ),
               ),
+              Icon(Icons.lock_outline, size: 14, color: Colors.grey.shade400),
             ],
           ),
 
-          const SizedBox(height: 10),
-          Container(height: 1, color: Colors.grey.shade300),
-          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                const SizedBox(width: 9),
+                Column(
+                  children: List.generate(
+                    4,
+                    (_) => Container(
+                      width: 2,
+                      height: 4,
+                      margin: const EdgeInsets.symmetric(vertical: 1),
+                      color: Colors.grey.shade300,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
 
+          // ── TO (autocomplete) ─────────────────────────────────────────────
           Row(
             children: [
-              Icon(Icons.location_on, color: Colors.red.shade600, size: 22),
+              Icon(Icons.location_on, color: Colors.red.shade600, size: 20),
               const SizedBox(width: 12),
               Expanded(
                 child: TextField(
-                  controller: toController,
-                  decoration: const InputDecoration(
-                    hintText: "Enter your destination",
+                  controller: widget.toController,
+                  focusNode: _toFocus,
+                  onChanged: _onToChanged,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                  decoration: InputDecoration(
+                    hintText: 'Where to?',
                     border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                    suffixIcon:
+                        widget.toController.text.isNotEmpty
+                            ? GestureDetector(
+                              onTap: () {
+                                widget.toController.clear();
+                                setState(() {
+                                  _suggestions = [];
+                                  _showDropdown = false;
+                                });
+                              },
+                              child: const Icon(Icons.clear, size: 16),
+                            )
+                            : null,
                   ),
                 ),
               ),

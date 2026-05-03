@@ -12,12 +12,6 @@ class HomePage extends StatefulWidget {
 
   @override
   State<HomePage> createState() => _HomePageState();
-  String _departureText = 'Select departure location';
-  LatLng? _departureLocation;
-  
-  String _destinationText = 'Select destination';
-  LatLng? _destinationLocation;
-  
 }
 
 class _HomePageState extends State<HomePage> {
