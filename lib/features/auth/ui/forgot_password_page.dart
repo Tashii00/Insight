@@ -35,8 +35,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       // Some projects return this; some don't. Keep message generic if you want.
       return "No account found for this email.";
     }
-    if (msg.contains("too-many-requests"))
+    if (msg.contains("too-many-requests")) {
       return "Too many attempts. Try later.";
+    }
     return "Could not send reset email. Please try again.";
   }
 

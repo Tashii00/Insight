@@ -88,8 +88,9 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _checkLocationStatus() async {
     final enabled = await Geolocator.isLocationServiceEnabled();
-    if (!enabled)
+    if (!enabled) {
       _showError('Location Disabled', 'Enable location to continue.');
+    }
     await _determinePosition();
   }
 

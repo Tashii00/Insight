@@ -48,8 +48,9 @@ class _RegisterPageState extends State<RegisterPage> {
 
   String _prettyFirebaseError(Object e) {
     final msg = e.toString();
-    if (msg.contains("email-already-in-use"))
+    if (msg.contains("email-already-in-use")) {
       return "This email is already registered.";
+    }
     if (msg.contains("invalid-email")) return "Invalid email address.";
     if (msg.contains("weak-password")) return "Password is too weak.";
     return "Registration failed. Please try again.";

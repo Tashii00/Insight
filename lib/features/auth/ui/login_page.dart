@@ -46,8 +46,9 @@ class _LoginPageState extends State<LoginPage> {
     if (msg.contains("user-not-found")) return "No user found for this email.";
     if (msg.contains("wrong-password")) return "Incorrect password.";
     if (msg.contains("invalid-email")) return "Invalid email address.";
-    if (msg.contains("too-many-requests"))
+    if (msg.contains("too-many-requests")) {
       return "Too many attempts. Try later.";
+    }
     return "Login failed. Please try again.";
   }
 
