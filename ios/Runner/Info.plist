@@ -15,7 +15,7 @@
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Used for navigation voice</string>
 	<key>CFBundleName</key>
-	<string>insight</string>
+	<string>Insight</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

@@ -296,7 +296,7 @@ class _HomePageState extends State<HomePage> {
           _isNavigating
               ? null
               : AppBar(
-                title: const Text('InSight'),
+                title: const Text('Insight'),
                 actions: [
                   if (_routeResult != null)
                     IconButton(
