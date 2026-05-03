@@ -12,6 +12,8 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Used for navigation voice</string>
 	<key>CFBundleName</key>
 	<string>insight</string>
 	<key>CFBundlePackageType</key>
