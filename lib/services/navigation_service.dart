@@ -1,26 +1,39 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'map_service.dart';
+import 'package:firebase_core/firebase_core.dart';
 
-/// Manages live GPS tracking, step-by-step advancement, and TTS voice.
+/// Manages live GPS tracking, step-by-step advancement, TTS voice,
+/// and Firebase IoT detection announcements (IoT has priority over nav TTS).
 class NavigationService {
   final FlutterTts _tts = FlutterTts();
   StreamSubscription<Position>? _positionSub;
+  StreamSubscription<DatabaseEvent>? _iotSub;
 
   RouteResult? _route;
   int _currentStepIndex = 0;
   bool _isNavigating = false;
   bool _voiceEnabled = true;
+  bool _isSpeakingIot = false;
 
-  // How close (meters) the user must be to a step's end to advance
+  // Persist between events so duplicate Firebase emissions can be ignored.
+  String? _lastSpokenDetection;
+  int? _lastSpokenTimestamp;
+  bool _iotBaselineCaptured = false;
+
   static const double _stepAdvanceThreshold = 20.0;
-  // Announce next step when within this many meters
   static const double _announceAheadMeters = 40.0;
-  // Announce "arriving" when within this many meters of destination
   static const double _arrivalThreshold = 15.0;
+
+  final DatabaseReference _iotRef = FirebaseDatabase.instanceFor(
+    app: Firebase.app(),
+    databaseURL:
+        'https://insight-64965-default-rtdb.asia-southeast1.firebasedatabase.app',
+  ).ref('iot/device_001');
 
   bool get isNavigating => _isNavigating;
   bool get voiceEnabled => _voiceEnabled;
@@ -34,42 +47,157 @@ class NavigationService {
           ? _route!.steps[_currentStepIndex + 1]
           : null;
 
-  // Callbacks for the UI to react
   void Function(int stepIndex)? onStepAdvanced;
   void Function(LatLng position)? onPositionUpdate;
   void Function()? onArrived;
+  void Function(String detection)? onIotDetection;
 
   Future<void> initTts() async {
     await _tts.setLanguage('en-US');
     await _tts.setSpeechRate(0.48);
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
+    print('✅ TTS initialized');
+
+    _tts.setCompletionHandler(() {
+      print('✅ TTS finished speaking');
+      _isSpeakingIot = false;
+    });
   }
 
   void toggleVoice() {
     _voiceEnabled = !_voiceEnabled;
-    if (!_voiceEnabled) _tts.stop();
+    if (!_voiceEnabled) {
+      _tts.stop();
+      _isSpeakingIot = false;
+    }
   }
 
   Future<void> startNavigation(RouteResult route) async {
     _route = route;
     _currentStepIndex = 0;
     _isNavigating = true;
+    _isSpeakingIot = false;
+    _lastSpokenDetection = null; // reset on every new navigation session
+    _lastSpokenTimestamp = null;
+    _iotBaselineCaptured = false;
 
     await initTts();
 
-    // Announce first step immediately
     if (_voiceEnabled && route.steps.isNotEmpty) {
-      await _speak(route.steps[0].ttsAnnouncement);
+      await _speak(route.steps[0].ttsAnnouncement, isIot: false);
     }
 
     _positionSub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 5, // fire every 5 m of movement
+        distanceFilter: 5,
       ),
     ).listen(_onPosition);
+
+    _startIotListener();
   }
+
+  // ─── Firebase IoT Listener ─────────────────────────────────────────────────
+
+  void _startIotListener() {
+    _iotSub?.cancel();
+
+    _iotSub = _iotRef.onValue.listen(
+      (DatabaseEvent event) {
+        print('🔥 RAW IoT event: ${event.snapshot.value}');
+        print('🔥 isNavigating: $_isNavigating');
+
+        if (!_isNavigating) return;
+
+        final value = event.snapshot.value;
+        if (!_iotBaselineCaptured) {
+          _iotBaselineCaptured = true;
+
+          if (value is Map) {
+            final baselineData = Map<Object?, Object?>.from(value);
+            _lastSpokenDetection =
+                (baselineData['latest_detection'] ?? '').toString().trim();
+            _lastSpokenTimestamp = int.tryParse(
+              (baselineData['timestamp'] ?? '').toString(),
+            );
+            print(
+              '🔥 Baseline captured on start: "$_lastSpokenDetection" @ $_lastSpokenTimestamp',
+            );
+          } else {
+            print('🔥 Baseline captured on start: non-map payload');
+          }
+          return;
+        }
+
+        if (value is! Map) {
+          print('🔥 Skipped: unexpected IoT payload shape');
+          return;
+        }
+
+        final data = Map<Object?, Object?>.from(value);
+        final detectionRaw = data['latest_detection'];
+        final timestampRaw = data['timestamp'];
+
+        final detection = (detectionRaw ?? '').toString().trim();
+        final timestamp = int.tryParse((timestampRaw ?? '').toString());
+        print('🔥 detection string: "$detection"');
+        print('🔥 detection timestamp: $timestamp');
+
+        // Skip empty or "no detection" strings
+        if (detection.isEmpty ||
+            detection.toLowerCase() == 'no detection' ||
+            detection.toLowerCase() == 'no_detection') {
+          print('🔥 Skipped: no detection string');
+          return;
+        }
+
+        // Skip if duplicate payload (same detection + same timestamp).
+        if (detection == _lastSpokenDetection &&
+            timestamp == _lastSpokenTimestamp) {
+          print(
+            '🔥 Skipped: same detection+timestamp "$_lastSpokenDetection" @ $_lastSpokenTimestamp',
+          );
+          return;
+        }
+
+        _lastSpokenDetection = detection;
+        _lastSpokenTimestamp = timestamp;
+        print('🔥 Speaking IoT detection: "$detection"');
+
+        onIotDetection?.call(detection);
+        _speakIot(detection);
+      },
+      onError: (error) {
+        print('❌ IoT listener error: $error');
+      },
+    );
+
+    print('✅ IoT listener started');
+  }
+
+  void _stopIotListener() {
+    _iotSub?.cancel();
+    _iotSub = null;
+  }
+
+  // ─── TTS Priority Logic ────────────────────────────────────────────────────
+
+  Future<void> _speakIot(String text) async {
+    if (!_voiceEnabled) return;
+    await _tts.stop();
+    _isSpeakingIot = true;
+    await _tts.speak(text);
+  }
+
+  Future<void> _speak(String text, {bool isIot = false}) async {
+    if (!_voiceEnabled) return;
+    if (_isSpeakingIot && !isIot) return;
+    await _tts.stop();
+    await _tts.speak(text);
+  }
+
+  // ─── GPS Position Handling ─────────────────────────────────────────────────
 
   void _onPosition(Position pos) {
     if (!_isNavigating || _route == null) return;
@@ -83,24 +211,23 @@ class NavigationService {
     final step = steps[_currentStepIndex];
     final distToStepEnd = _distanceMeters(current, step.endLocation);
 
-    // ── Check arrival at final destination ───────────────────────────────────
     final dest = steps.last.endLocation;
     if (_distanceMeters(current, dest) < _arrivalThreshold) {
       _arrive();
       return;
     }
 
-    // ── Advance step when close enough to step end ───────────────────────────
     if (distToStepEnd < _stepAdvanceThreshold) {
       _advanceStep();
       return;
     }
 
-    // ── Pre-announce next step when approaching step end ─────────────────────
     if (distToStepEnd < _announceAheadMeters &&
         _currentStepIndex + 1 < steps.length) {
       final next = steps[_currentStepIndex + 1];
-      if (_voiceEnabled) _speak('In ${step.distance}, ${next.ttsAnnouncement}');
+      if (_voiceEnabled && !_isSpeakingIot) {
+        _speak('In ${step.distance}, ${next.ttsAnnouncement}');
+      }
     }
   }
 
@@ -111,7 +238,9 @@ class NavigationService {
 
     if (_currentStepIndex < _route!.steps.length) {
       final step = _route!.steps[_currentStepIndex];
-      if (_voiceEnabled) _speak(step.ttsAnnouncement);
+      if (_voiceEnabled && !_isSpeakingIot) {
+        _speak(step.ttsAnnouncement);
+      }
     }
   }
 
@@ -123,21 +252,18 @@ class NavigationService {
 
   void stopNavigation() {
     _isNavigating = false;
+    _isSpeakingIot = false;
+    _lastSpokenDetection = null; // ✅ reset so next session starts fresh
+    _lastSpokenTimestamp = null;
+    _iotBaselineCaptured = false;
     _positionSub?.cancel();
     _positionSub = null;
+    _stopIotListener();
     _tts.stop();
   }
 
-  /// Re-speak any step on demand (called when user taps a step in the list)
   Future<void> speakStep(RouteStep step) => _speak(step.ttsAnnouncement);
 
-  Future<void> _speak(String text) async {
-    if (!_voiceEnabled) return;
-    await _tts.stop();
-    await _tts.speak(text);
-  }
-
-  /// Haversine distance in meters between two LatLng points
   static double _distanceMeters(LatLng a, LatLng b) {
     const r = 6371000.0;
     final lat1 = a.latitude * pi / 180;

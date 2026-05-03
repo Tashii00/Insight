@@ -32,6 +32,9 @@ class _HomePageState extends State<HomePage> {
   final NavigationService _nav = NavigationService();
   bool _isNavigating = false;
 
+  // IoT detection state
+  String? _latestIotDetection;
+
   @override
   void initState() {
     super.initState();
@@ -65,6 +68,18 @@ class _HomePageState extends State<HomePage> {
       if (mounted) {
         setState(() => _isNavigating = false);
         _showInfo('You arrived!', 'You have reached your destination.');
+      }
+    };
+
+    // IoT detection callback — update UI banner
+    _nav.onIotDetection = (detection) {
+      if (mounted) {
+        setState(() => _latestIotDetection = detection);
+
+        // Auto-clear the banner after 4 seconds
+        Future.delayed(const Duration(seconds: 4), () {
+          if (mounted) setState(() => _latestIotDetection = null);
+        });
       }
     };
   }
@@ -160,7 +175,7 @@ class _HomePageState extends State<HomePage> {
           color: Colors.blue.shade600,
           width: 6,
           points: result.polylinePoints,
-          patterns: [PatternItem.dot, PatternItem.gap(12)], // dotted = walking
+          patterns: [PatternItem.dot, PatternItem.gap(12)],
           startCap: Cap.roundCap,
           endCap: Cap.roundCap,
         ),
@@ -182,9 +197,11 @@ class _HomePageState extends State<HomePage> {
 
   void _startNavigation() {
     if (_routeResult == null) return;
-    setState(() => _isNavigating = true);
+    setState(() {
+      _isNavigating = true;
+      _latestIotDetection = null;
+    });
     _nav.startNavigation(_routeResult!);
-    // Zoom to user for navigation view
     _mapController.animateCamera(
       CameraUpdate.newLatLngZoom(_currentPosition, 18),
     );
@@ -194,6 +211,7 @@ class _HomePageState extends State<HomePage> {
     _nav.stopNavigation();
     setState(() {
       _isNavigating = false;
+      _latestIotDetection = null;
     });
     if (_routeResult != null) _fitRoute(_routeResult!.polylinePoints);
   }
@@ -354,6 +372,15 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
 
+          // ── IoT Detection Banner (shows above step list during nav) ───────
+          if (_isNavigating && _latestIotDetection != null)
+            Positioned(
+              bottom: 210, // sits just above the step list sheet
+              left: 16,
+              right: 16,
+              child: _IotDetectionBanner(detection: _latestIotDetection!),
+            ),
+
           // ── Navigation step list (bottom sheet during nav) ───────────────
           if (_isNavigating && _routeResult != null)
             Positioned(
@@ -366,6 +393,50 @@ class _HomePageState extends State<HomePage> {
                 onStepTap: (step) => _nav.speakStep(step),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── IoT Detection Banner ─────────────────────────────────────────────────────
+
+class _IotDetectionBanner extends StatelessWidget {
+  final String detection;
+
+  const _IotDetectionBanner({required this.detection});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade800,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.sensors, color: Colors.white, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              detection,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );
@@ -463,7 +534,6 @@ class _NavigationBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Maneuver icon
           Container(
             width: 48,
             height: 48,
@@ -478,8 +548,6 @@ class _NavigationBanner extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-
-          // Instruction
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -506,8 +574,6 @@ class _NavigationBanner extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-
-          // Voice toggle
           IconButton(
             icon: Icon(
               nav.voiceEnabled ? Icons.volume_up : Icons.volume_off,
@@ -516,8 +582,6 @@ class _NavigationBanner extends StatelessWidget {
             onPressed: onToggleVoice,
             tooltip: nav.voiceEnabled ? 'Mute voice' : 'Unmute voice',
           ),
-
-          // Stop navigation
           IconButton(
             icon: const Icon(Icons.close, color: Colors.white),
             onPressed: onStop,
@@ -529,7 +593,7 @@ class _NavigationBanner extends StatelessWidget {
   }
 }
 
-// ─── Step List Sheet (collapsible, shows all steps) ───────────────────────────
+// ─── Step List Sheet ──────────────────────────────────────────────────────────
 
 class _StepListSheet extends StatelessWidget {
   final List<RouteStep> steps;
@@ -560,7 +624,6 @@ class _StepListSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Handle
           Center(
             child: Container(
               margin: const EdgeInsets.only(top: 8, bottom: 4),
