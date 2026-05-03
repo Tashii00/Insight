@@ -4,7 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
 class MapService {
-  static const String _apiKey = 'AIzaSyDz9uPsUzv9X5svxgADBM1VVV0JTfg-euE';
+  static const String _apiKey = 'AIzaSyBFms9HQvwrJRfKlMLYmJaWKHo6YaYq_Ho';
   static const String _baseUrl = 'https://maps.googleapis.com/maps/api';
 
   // ─── Places Autocomplete (biased to user location) ────────────────────────
