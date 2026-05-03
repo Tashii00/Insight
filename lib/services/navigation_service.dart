@@ -19,6 +19,8 @@ class NavigationService {
   bool _isNavigating = false;
   bool _voiceEnabled = true;
   bool _isSpeakingIot = false;
+  bool _useUrduForIot = false;
+  String? _urduLocale;
 
   // Persist between events so duplicate Firebase emissions can be ignored.
   String? _lastSpokenDetection;
@@ -37,6 +39,7 @@ class NavigationService {
 
   bool get isNavigating => _isNavigating;
   bool get voiceEnabled => _voiceEnabled;
+  bool get useUrduForIot => _useUrduForIot;
   int get currentStepIndex => _currentStepIndex;
   RouteStep? get currentStep =>
       _route != null && _currentStepIndex < _route!.steps.length
@@ -70,6 +73,27 @@ class NavigationService {
     if (!_voiceEnabled) {
       _tts.stop();
       _isSpeakingIot = false;
+    }
+  }
+
+  Future<void> setUseUrduForIot(bool enabled) async {
+    _useUrduForIot = enabled;
+    if (!enabled) {
+      _urduLocale = null;
+      await _tts.setLanguage('en-US');
+      print('✅ IoT TTS language set to English');
+      return;
+    }
+
+    final urduPk = await _tts.isLanguageAvailable('ur-PK') == true;
+    final urduIn = await _tts.isLanguageAvailable('ur-IN') == true;
+    if (urduPk) {
+      _urduLocale = 'ur-PK';
+    } else if (urduIn) {
+      _urduLocale = 'ur-IN';
+    } else {
+      _urduLocale = null;
+      print('⚠️ Urdu TTS voice not available on this device. Using English.');
     }
   }
 
@@ -185,6 +209,7 @@ class NavigationService {
 
   Future<void> _speakIot(String text) async {
     if (!_voiceEnabled) return;
+    await _applyIotTtsLanguage();
     await _tts.stop();
     _isSpeakingIot = true;
     await _tts.speak(text);
@@ -193,8 +218,28 @@ class NavigationService {
   Future<void> _speak(String text, {bool isIot = false}) async {
     if (!_voiceEnabled) return;
     if (_isSpeakingIot && !isIot) return;
+    await _tts.setLanguage('en-US');
     await _tts.stop();
     await _tts.speak(text);
+  }
+
+  Future<void> _applyIotTtsLanguage() async {
+    if (!_useUrduForIot) {
+      await _tts.setLanguage('en-US');
+      return;
+    }
+
+    if (_urduLocale == null) {
+      final urduPk = await _tts.isLanguageAvailable('ur-PK') == true;
+      final urduIn = await _tts.isLanguageAvailable('ur-IN') == true;
+      if (urduPk) {
+        _urduLocale = 'ur-PK';
+      } else if (urduIn) {
+        _urduLocale = 'ur-IN';
+      }
+    }
+
+    await _tts.setLanguage(_urduLocale ?? 'en-US');
   }
 
   // ─── GPS Position Handling ─────────────────────────────────────────────────
