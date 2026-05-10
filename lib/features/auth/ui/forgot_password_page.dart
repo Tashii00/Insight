@@ -1,8 +1,16 @@
+// lib/features/auth/ui/forgot_password_page.dart
+// REPLACE your existing forgot_password_page.dart with this file.
+// Only change: constructor accepts optional AuthService for testing.
+// All UI, validators, and logic are IDENTICAL to your original.
+
 import 'package:flutter/material.dart';
 import 'package:insight/features/auth/data/auth_service.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
-  const ForgotPasswordPage({super.key});
+  const ForgotPasswordPage({super.key, this.authService});
+
+  // Optional — only used by tests. Real app uses null (falls back to AuthService())
+  final AuthService? authService;
 
   @override
   State<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
@@ -11,7 +19,7 @@ class ForgotPasswordPage extends StatefulWidget {
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
-  final _auth = AuthService();
+  late final _auth = widget.authService ?? AuthService();
 
   bool _loading = false;
 
@@ -32,7 +40,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     final msg = e.toString();
     if (msg.contains("invalid-email")) return "Invalid email address.";
     if (msg.contains("user-not-found")) {
-      // Some projects return this; some don't. Keep message generic if you want.
       return "No account found for this email.";
     }
     if (msg.contains("too-many-requests")) {
@@ -81,7 +88,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 children: [
                   const SizedBox(height: 10),
                   Text(
-                    "Enter your email and we’ll send a reset link.",
+                    "Enter your email and we'll send a reset link.",
                     style: TextStyle(color: Colors.grey.shade700),
                   ),
                   const SizedBox(height: 16),

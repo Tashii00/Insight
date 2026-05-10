@@ -1,7 +1,17 @@
+// lib/features/auth/data/auth_service.dart
+// REPLACE your existing auth_service.dart with this file.
+// Only change: constructor now accepts an optional FirebaseAuth
+// so tests can inject a mock. All other logic is IDENTICAL.
+
 import 'package:firebase_auth/firebase_auth.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseAuth _auth;
+
+  // Default constructor still works exactly as before in your real app.
+  // Tests pass in a MockFirebaseAuth instead.
+  AuthService({FirebaseAuth? firebaseAuth})
+      : _auth = firebaseAuth ?? FirebaseAuth.instance;
 
   Stream<User?> authStateChanges() => _auth.authStateChanges();
   User? get currentUser => _auth.currentUser;
